@@ -23,6 +23,7 @@ errnoffnd: equ     2
 errinvdir: equ     3
 errisdir:  equ     4
 errdirnotempty: equ   5
+errnotexec:     equ   6
 
 o_cdboot:  lbr     coldboot
 o_wrmboot: lbr     warmboot
@@ -55,8 +56,24 @@ error:     shl                         ; move error over
            shr                         ; shift over and set DF
            sep     sret                ; return to caller
 
+           org     3f0h
+intret:    sex     r2
+           irx
+           ldxa
+           shr
+           ldxa
+           ret
+iserve:    dec     r2
+           sav
+           dec     r2
+           stxd
+           shlc
+           stxd
+           db      0c0h
+ivec:      dw      intret
+
            org     400h
-version:   db      0,3,0
+version:   db      0,3,1
 
 include    build.inc
 include    date.inc
@@ -78,7 +95,7 @@ mdfildes:  db      0,0,0,0             ; current offset
 intfildes: db      0,0,0,0             ; current offset
            dw      intdta              ; dta
            dw      0                   ; eof
-           db      0                   ; flags
+intflags:  db      0                   ; flags
            db      0,0,0,0             ; dir sector
            dw      0                   ; dir offset
            db      255,255,255,255     ; current sector
@@ -91,9 +108,13 @@ d_input:   lbr     f_input             ; jump to bios input routine
            db      0,0,0,0,0,0,0,0,0,0
 d_pstat:   lbr     return              ; jump to bios read routine
 d_print:   lbr     return              ; jump to bios input routine
-           db      0,0,0,0,0,0,0,0,0,0
+d_incofs:  lbr     incofs1             ; internal vector, not a published call
+d_append:  lbr     append              ; internal vector, not a published call
+           db      0,0,0,0
 curdrive:  db      0
 date_time: db      7,31,34,0,0,0
+lmpshift:  db      0
+lmpmask:   db      0
 path2:     ds      128
 
            org     0500h
@@ -2695,7 +2716,8 @@ searchlp:  sep     scall               ; get current sector, offset
            ldi     32
            plo     rc
            sep     scall               ; perform read
-           dw      read
+           dw      o_read
+;           dw      read
            glo     rc                  ; see if enough bytes were read
            smi     32
            lbnz    searchno            ; jump if end of dir was hit
@@ -2830,9 +2852,20 @@ setupfd:   sep     scall               ; set dir sector
            dw      lumptosec
            sep     scall               ; read the first sector of the file
            dw      rawread
-           ldi     08h                 ; set initial flags
+           inc     rf                  ; point to flags
+           inc     rf
+           ldn     rf                  ; get flags
+           ani     3                   ; keep only bottom 2 bits
+           shl                         ; shift into correct position
+           shl
+           shl
+           shl
+           shl
+           ori     08h                 ; set initial flags
            sep     scall
            dw      setfdflgs
+           dec     rf                  ; move dirent pointer back to eof
+           dec     rf
            sep     scall               ; get lump value
            dw      readlump
            ghi     ra                  ; check end code
@@ -2841,7 +2874,10 @@ setupfd:   sep     scall               ; set dir sector
            glo     ra
            smi     0feh
            lbnz    openeof
-           ldi     0ch                 ; signal final lump
+;           ldi     0ch                 ; signal final lump
+           sep     scall                ; get flags
+           dw      getfdflgs
+           ori     004h                 ; signal final lump
            sep     scall
            dw      setfdflgs
 openeof:   lda     rf                  ; get eof
@@ -3092,7 +3128,8 @@ create2:   lda     rf                  ; get character from filename
            ldi     32
            plo     rc
            sep     scall               ; write the dir entry
-           dw      write
+           dw      o_write
+;           dw      write
            sep     scall               ; close the directory
            dw      close
            irx                         ; recover new descriptor
@@ -3187,7 +3224,8 @@ newfilelp: ldi     high scratch        ; setup buffer
            ldi     32
            plo     rc
            sep     scall               ; read next record
-           dw      read
+           dw      o_read
+;           dw      read
            glo     rc                  ; see if record was read
            smi     32
            lbnz    neweof              ; jump if eof hit
@@ -3328,34 +3366,13 @@ execfail:  ldi     1                   ; signal error
 open:      sep     scall               ; validate filename
            dw      validate
            lbdf    noopen              ; failed
-           glo     r7                  ; save consumed registers
-           stxd
-           ghi     r7
-           stxd
-           glo     r8                  ; save consumed registers
-           stxd
-           ghi     r8
-           stxd
-           glo     r9                  ; save consumed registers
-           stxd
-           ghi     r9
-           stxd
-           glo     ra                  ; save consumed registers
-           stxd
-           ghi     ra
-           stxd
-           glo     rb                  ; save consumed registers
-           stxd
-           ghi     rb
-           stxd
-           glo     rc                  ; save consumed registers
-           stxd
-           ghi     rc
-           stxd
-           glo     rd                  ; save descriptor
-           stxd
-           ghi     rd
-           stxd
+           push    r7                  ; save consumed registers
+           push    r8
+           push    r9
+           push    ra
+           push    rb
+           push    rc
+           push    rd
            glo     r7                  ; get copy of flags
            stxd                        ; and save
            sep     scall               ; find directory
@@ -3731,7 +3748,11 @@ execgo1:
 err:       ldi      1                    ; signal an error
            shr
            sep      sret
-opened:    ldi      high scratch         ; scratch space to read header
+opened:    mov      rf,intflags          ; need to get flags
+           ldn      rf                   ; retrieve them
+           ani      040h                 ; is file executable
+           lbz      notexec              ; jump if not exeuctable file
+           ldi      high scratch         ; scratch space to read header
            phi      rf
            ldi      low scratch
            plo      rf
@@ -3740,7 +3761,8 @@ opened:    ldi      high scratch         ; scratch space to read header
            ldi      6
            plo      rc
            sep      scall                ; read header
-           dw       read
+           dw       o_read
+;           dw       read
            ldi      high scratch         ; point to load offset
            phi      r7
            ldi      low scratch
@@ -3756,7 +3778,8 @@ opened:    ldi      high scratch         ; scratch space to read header
            lda      r7
            plo      rc
            sep      scall                ; read program block
-           dw       read
+           dw       o_read
+;           dw       read
            ldi      high progaddr        ; point to destination of call
            phi      rf
            ldi      low progaddr
@@ -3775,6 +3798,8 @@ progaddr:  dw       0
            ldi      0                    ; signal no error
            shr
            sep      sret                 ; return to caller
+notexec:   ldi      errnotexec           ; signal non-executable file
+           lbr      error                ; and return
 
 ; *******************************
 ; *** Make directory          ***
@@ -4083,7 +4108,8 @@ rmdirlp:   ldi     0                   ; need to read 32 bytes
            ldi     low scratch
            plo     rf
            sep     scall               ; read the bytes
-           dw      read
+           dw      o_read
+;           dw      read
            glo     rc                  ; see if eof was hit
            smi     32
            lbnz    rmdireof            ; jump if dir was empty
@@ -4131,7 +4157,7 @@ coldboot:  ldi     high start          ; get return address for setcall
            lbr     f_initcall          ; setup call and return
 
 
-kinit:     sep     scall               ; force ide reset
+kinit:     sep     scall               ; get free memory
            dw      f_idereset
            ldi     high path           ; set path
            phi     rf
@@ -4157,6 +4183,15 @@ start:     sep     scall               ; execute init procedures
 ; ********************************
 ; *** Attempt to execute /INIT ***
 ; ********************************
+           sep     scall               ; get free memory
+           dw      f_freemem
+           mov     r7,himem            ; point to hi memory pointer
+           ghi     rf                  ; store highest memory address
+           str     r7                  ; and store it
+           inc     r7
+           glo     rf
+           str     r7
+
            ldi     high initprg        ; point to init program command line
            phi     rf
            ldi     low initprg
@@ -4174,6 +4209,7 @@ welcome:   ldi     high bootmsg
            plo     rf
            sep     scall
            dw      d_msg
+     
 warmboot:  ldi     high stack          ; reset the stack
            phi     r2
            ldi     low stack
@@ -4401,8 +4437,8 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
            lbr     rtc_cont            ; continue
 
 bootmsg:   db      'Starting Elf/OS ...',10,13
-           db      'Version 0.3.0',10,13
-           db      'Copyright 2004-2020 by Michael H Riley',10,13,0
+           db      'Version 0.3.1',10,13
+           db      'Copyright 2004-2021 by Michael H Riley',10,13,0
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0
 errnf:     db      'File not found.',10,13,0
@@ -4411,8 +4447,6 @@ shellprg:  db      '/BIN/shell',0
 defdir:    db      '/BIN/',0
            ds      80
 
-lmpshift:  db      0
-lmpmask:   db      0
 path:      ds      128
 intdta:    ds      512
 mddta:     ds      512

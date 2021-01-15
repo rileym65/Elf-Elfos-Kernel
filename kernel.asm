@@ -3052,6 +3052,7 @@ opendir:   glo     rc                  ; save consumed register
 ; *** RF - filename              ***
 ; *** R7 - Flags                 ***
 ; ***      1-subdir              ***
+; ***      2-executable          ***
 ; *** Returns: RD - new file     ***
 ; **********************************
 create:    glo     ra                  ; save consumed registers
@@ -3469,6 +3470,7 @@ openexit:  irx                         ; recover consumed registers
            sep     sret                ; return to caller
 newfile:   irx                         ; recover flags
            ldx
+           plo     re                  ; keep a copy
            ani     1                   ; see if create is allowed
            lbnz    allow               ; allow the create
            ldi     1                   ; need to signal an error
@@ -3479,14 +3481,25 @@ newfile:   irx                         ; recover flags
            ldx
            plo     rd
            lbr     openexit
-allow:     glo     rc                  ; save filename address
+allow:     ldi     0                   ; no file flags
+           plo     r7
+           glo     re
+           ani     8                   ; see if executable file needs to be set
+           lbz     allow2              ; jump if not
+           ldi     2                   ; set flags for executable file
+           plo     r7
+allow2:    glo     rc                  ; save filename address
            stxd
            ghi     rc
            stxd
+           glo     r7                  ; save flags
+           stxd
            sep     scall               ; find a free dir entry
            dw      freedir
-           irx                         ; recover filename
+           irx                         ; recover flags
            ldxa
+           plo     r7
+           ldxa                        ; recover filename
            phi     rf
            ldxa
            plo     rf
@@ -3494,8 +3507,6 @@ allow:     glo     rc                  ; save filename address
            phi     rc
            ldx
            plo     rc
-           ldi     0                   ; set no flags
-           plo     r7
            sep     scall               ; create the file
            dw      create
            ldi     0                   ; signal success

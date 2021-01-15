@@ -23,3 +23,5 @@ O_PRINT:   equ     033fh               ; output to printer
 O_EXECBIN: equ     0342h               ; execute from default directory
 O_SETDEF:  equ     0345h               ; set/get default directory
 O_KINIT:   equ     0348h               ; reserved - do not use!!!
+O_INMSG:   equ     034bh               ; passthrough for console output
+

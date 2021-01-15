@@ -50,6 +50,7 @@ o_print:   lbr     d_print
 o_execdef: lbr     execbin
 o_setdef:  lbr     setdef
 o_kinit:   lbr     kinit
+o_inmsg:   lbr     f_inmsg
 
 error:     shl                         ; move error over
            ori     1                   ; signal error condition

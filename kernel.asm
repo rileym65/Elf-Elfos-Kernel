@@ -74,7 +74,7 @@ iserve:    dec     r2
 ivec:      dw      intret
 
            org     400h
-version:   db      0,3,1
+version:   db      0,3,2
 
 include    build.inc
 include    date.inc
@@ -113,7 +113,7 @@ d_incofs:  lbr     incofs1             ; internal vector, not a published call
 d_append:  lbr     append              ; internal vector, not a published call
            db      0,0,0,0
 curdrive:  db      0
-date_time: db      7,31,34,0,0,0
+date_time: db      1,17,49,0,0,0
 lmpshift:  db      0
 lmpmask:   db      0
 path2:     ds      128
@@ -4449,7 +4449,7 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
            lbr     rtc_cont            ; continue
 
 bootmsg:   db      'Starting Elf/OS ...',10,13
-           db      'Version 0.3.1',10,13
+           db      'Version 0.3.2',10,13
            db      'Copyright 2004-2021 by Michael H Riley',10,13,0
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0

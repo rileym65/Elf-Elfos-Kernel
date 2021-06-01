@@ -25,6 +25,12 @@ errisdir:  equ     4
 errdirnotempty: equ   5
 errnotexec:     equ   6
 
+ff_dir:     equ     1
+ff_exec:    equ     2
+ff_write:   equ     4
+ff_hide:    equ     8
+ff_archive: equ     16
+
 o_cdboot:  lbr     coldboot
 o_wrmboot: lbr     warmboot
 o_open:    lbr     open
@@ -56,6 +62,12 @@ error:     shl                         ; move error over
            ori     1                   ; signal error condition
            shr                         ; shift over and set DF
            sep     sret                ; return to caller
+
+           org     3ceh
+biosvec:   dw      0
+
+           org     3d0h                ; reserve some space for users
+user:      db      0
 
            org     3f0h
 intret:    sex     r2
@@ -2607,7 +2619,7 @@ close1:    inc     rd                  ; point to dir sector
            str     r9
            inc     r9
            ldn     r9                  ; get flags
-           ori     16                  ; set archive bit
+           ori     ff_archive          ; set archive bit
            str     r9                  ; and write it back
            inc     r9                  ; move past flags
            sep     scall               ; get current date/time
@@ -2859,7 +2871,7 @@ setupfd:   sep     scall               ; set dir sector
            inc     rf                  ; point to flags
            inc     rf
            ldn     rf                  ; get flags
-           ani     3                   ; keep only bottom 2 bits
+           ani     7                   ; keep only bottom 3 bits
            shl                         ; shift into correct position
            shl
            shl

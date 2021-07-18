@@ -25,6 +25,12 @@ errisdir:  equ     4
 errdirnotempty: equ   5
 errnotexec:     equ   6
 
+ff_dir:     equ     1
+ff_exec:    equ     2
+ff_write:   equ     4
+ff_hide:    equ     8
+ff_archive: equ     16
+
 o_cdboot:  lbr     coldboot
 o_wrmboot: lbr     warmboot
 o_open:    lbr     open
@@ -41,21 +47,30 @@ o_chdir:   lbr     chdir
 o_rmdir:   lbr     rmdir
 o_rdlump:  lbr     readlump
 o_wrtlump: lbr     writelump
-o_type:    lbr     d_type
-o_msg:     lbr     d_msg
-o_readkey: lbr     d_readkey
-o_input:   lbr     d_input
-o_prtstat: lbr     d_pstat
-o_print:   lbr     d_print
+o_type:    lbr     f_type
+o_msg:     lbr     f_msg
+o_readkey: lbr     f_read
+o_input:   lbr     f_input
+o_prtstat: lbr     return
+o_print:   lbr     return
 o_execdef: lbr     execbin
 o_setdef:  lbr     setdef
 o_kinit:   lbr     kinit
 o_inmsg:   lbr     f_inmsg
+o_getdev:  lbr     f_getdev
+o_gettod:  lbr     f_gettod
+o_settod:  lbr     f_settod
+o_inputl:  lbr     f_inputl
+o_boot:    lbr     f_boot
+o_tty:     lbr     f_tty
 
 error:     shl                         ; move error over
            ori     1                   ; signal error condition
            shr                         ; shift over and set DF
            sep     sret                ; return to caller
+
+           org     3d0h                ; reserve some space for users
+user:      db      0
 
            org     3f0h
 intret:    sex     r2
@@ -101,14 +116,11 @@ intflags:  db      0                   ; flags
            dw      0                   ; dir offset
            db      255,255,255,255     ; current sector
 himem:     dw      0
-d_type:    lbr     f_type              ; jump to bios type routine
-d_msg:     lbr     f_msg               ; jump to bios msg routine
-           db      0,0,0,0,0,0,0,0,0,0
-d_readkey: lbr     f_read              ; jump to bios read routine
-d_input:   lbr     f_input             ; jump to bios input routine
-           db      0,0,0,0,0,0,0,0,0,0
-d_pstat:   lbr     return              ; jump to bios read routine
-d_print:   lbr     return              ; jump to bios input routine
+d_idereset: lbr    f_idereset          ; jump to bios ide reset
+d_ideread: lbr     f_ideread           ; jump to bios ide read
+d_idewrite: lbr    f_idewrite          ; jump to bios ide write
+           db      0,0,0,0,0,0,0,0,0,0,0,0,0
+           db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 d_incofs:  lbr     incofs1             ; internal vector, not a published call
 d_append:  lbr     append              ; internal vector, not a published call
            db      0,0,0,0
@@ -616,7 +628,7 @@ rawwrite1: glo     rf                  ; save consumed register
            ori     0e0h                ; force lba mode
            phi     r8
            sep     scall               ; call bios to write sector
-           dw      f_idewrite
+           dw      d_idewrite
            irx                         ; recover high r8
            ldxa
            phi     r8
@@ -751,7 +763,7 @@ rawread1:  sep     scall               ; see if loaded sector needs writing
            ori     0e0h                ; force lba mode
            phi     r8
            sep     scall               ; call bios to read sector
-           dw      f_ideread
+           dw      d_ideread
            irx                         ; recover high r8
            ldx
            phi     r8
@@ -2607,7 +2619,7 @@ close1:    inc     rd                  ; point to dir sector
            str     r9
            inc     r9
            ldn     r9                  ; get flags
-           ori     16                  ; set archive bit
+           ori     ff_archive          ; set archive bit
            str     r9                  ; and write it back
            inc     r9                  ; move past flags
            sep     scall               ; get current date/time
@@ -2859,7 +2871,7 @@ setupfd:   sep     scall               ; set dir sector
            inc     rf                  ; point to flags
            inc     rf
            ldn     rf                  ; get flags
-           ani     3                   ; keep only bottom 2 bits
+           ani     7                   ; keep only bottom 3 bits
            shl                         ; shift into correct position
            shl
            shl
@@ -4173,7 +4185,7 @@ coldboot:  ldi     high start          ; get return address for setcall
 
 
 kinit:     sep     scall               ; get free memory
-           dw      f_idereset
+           dw      d_idereset
            ldi     high path           ; set path
            phi     rf
            ldi     low path
@@ -4223,7 +4235,7 @@ welcome:   ldi     high bootmsg
            ldi     low bootmsg
            plo     rf
            sep     scall
-           dw      d_msg
+           dw      o_msg
      
 warmboot:  ldi     high stack          ; reset the stack
            phi     r2
@@ -4245,7 +4257,7 @@ cmdlp:     ldi      high prompt          ; get address of prompt into R6
            ldi      low prompt
            plo      rf
            sep      scall
-           dw       d_msg                ; function to print a message
+           dw       o_msg                ; function to print a message
 
 
            ldi      high keybuf          ; place address of keybuffer in R6
@@ -4259,7 +4271,7 @@ cmdlp:     ldi      high prompt          ; get address of prompt into R6
            ldi      low crlf  
            plo      rf
            sep      scall
-           dw       d_msg                ; function to print a message
+           dw       o_msg                ; function to print a message
 
            ldi      high keybuf          ; place address of keybuffer in R6
            phi      rf
@@ -4285,7 +4297,7 @@ loaderr:   ldi      high errnf           ; point to not found message
            ldi      low errnf
            plo      rf
            sep      scall                ; display it
-           dw       d_msg
+           dw       o_msg
            lbr      cmdlp                ; loop back for next command
 
 ; *****************************
@@ -4377,7 +4389,7 @@ gettmdt:   glo     rf                  ; save consumed register
            ghi     rf
            stxd
            sep     scall               ; get devices
-           dw      f_getdev
+           dw      o_getdev
            glo     rf
            ani     010h                ; see if RTC is installed
            lbz     no_rtc              ; jump if no rtc
@@ -4385,7 +4397,7 @@ gettmdt:   glo     rf                  ; save consumed register
            phi     rf
            plo     rf
            sep     scall               ; get time and date
-           dw      f_gettod
+           dw      o_gettod
            lbdf    no_rtc              ; jump if rtc is unreadable
            ldi     0                   ; point to scratch area
            phi     rf

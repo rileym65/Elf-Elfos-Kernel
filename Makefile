@@ -1,7 +1,7 @@
 PROJECT = kernel
 
 $(PROJECT).prg: $(PROJECT).asm bios.inc
-	../date.pl > date.inc
+	../../date.pl > date.inc
 	./build.pl > build.inc
 	cpp $(PROJECT).asm -o - | sed -e 's/^#.*//' > temp.asm
 	rcasm -l -v -x -d1802 temp | tee kernel.lst

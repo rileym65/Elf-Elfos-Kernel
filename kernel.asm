@@ -69,6 +69,9 @@ error:     shl                         ; move error over
            shr                         ; shift over and set DF
            sep     sret                ; return to caller
 
+           org     3ceh
+biosvec:   dw      0
+
            org     3d0h                ; reserve some space for users
 user:      db      0
 

@@ -10,8 +10,8 @@
 
          org     300h
          include  bios.inc
-scratch: equ     0
-keybuf:  equ     0380h
+scratch: equ     010h
+keybuf:  equ     080h
 dta:     equ     100h
 
 vcursec:   equ     00f0h
@@ -63,6 +63,9 @@ o_settod:  lbr     f_settod
 o_inputl:  lbr     f_inputl
 o_boot:    lbr     f_boot
 o_tty:     lbr     f_tty
+o_setbd:   lbr     f_setbd
+o_initcall: lbr    f_initcall
+o_brktest: lbr     f_brktest
 
 error:     shl                         ; move error over
            ori     1                   ; signal error condition
@@ -92,7 +95,7 @@ iserve:    dec     r2
 ivec:      dw      intret
 
            org     400h
-version:   db      0,3,3
+version:   db      0,4,0
 
 include    build.inc
 include    date.inc
@@ -126,11 +129,15 @@ d_idewrite: lbr    f_idewrite          ; jump to bios ide write
            db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 d_incofs:  lbr     incofs1             ; internal vector, not a published call
 d_append:  lbr     append              ; internal vector, not a published call
-           db      0,0,0,0
-curdrive:  db      0
-date_time: db      1,17,49,0,0,0
+clockfrq:  dw      4000
 lmpshift:  db      0
 lmpmask:   db      0
+curdrive:  db      0
+date_time: db      1,17,49,0,0,0
+secden:    dw      0
+secnum:    dw      0
+
+
 path2:     ds      128
 
            org     0500h
@@ -4184,7 +4191,7 @@ coldboot:  ldi     high start          ; get return address for setcall
            ldi     255
            plo     r2
            sex     r2                  ; point x to stack
-           lbr     f_initcall          ; setup call and return
+           lbr     o_initcall          ; setup call and return
 
 
 kinit:     sep     scall               ; get free memory
@@ -4231,7 +4238,7 @@ start:     sep     scall               ; execute init procedures
            lbnf    welcome             ; jump if no error
 #ifndef ELF2K
 default:   sep     scall               ; get terminal baud rate
-           dw      f_setbd
+           dw      o_setbd
 #endif
 welcome:   ldi     high bootmsg
            phi     rf

@@ -4484,8 +4484,8 @@ prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0
 errnf:     db      'File not found.',10,13,0
 initprg:   db      'init',0
-shellprg:  db      '/BIN/shell',0
-defdir:    db      '/BIN/',0
+shellprg:  db      '/bin/shell',0
+defdir:    db      '/bin/',0
            ds      80
 
 path:      ds      128

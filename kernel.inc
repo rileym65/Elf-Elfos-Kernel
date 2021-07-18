@@ -24,4 +24,16 @@ O_EXECBIN: equ     0342h               ; execute from default directory
 O_SETDEF:  equ     0345h               ; set/get default directory
 O_KINIT:   equ     0348h               ; reserved - do not use!!!
 O_INMSG:   equ     034bh               ; passthrough for console output
+O_GETDEV:  equ     034eh               ; passthrough to f_getdef
+O_GETTOD:  equ     0351h               ; passthrough to f_gettod
+O_SETTOD:  equ     0354h               ; passthrough to f_settod
+O_INPUTL:  equ     0357h               ; passthrough to f_inputl
+O_BOOT:    equ     035ah               ; passthrough to f_boot
+O_TTY:     equ     035dh               ; passthrough to f_tty
+O_SETBD:   equ     0360h               ; passthrough to f_setbd
+O_INITCALL: equ    0363h               ; passthrough to f_initcall
+O_BRKTEST: equ     0366h               ; passthrough to f_brktest
+O_DEVCTRL: equ     0369h               ; passthrough to deverr
+V_IVEC:    equ     03fdh               ; interrupt head
+V_DVEC:    equ     036ah               ; device head
 

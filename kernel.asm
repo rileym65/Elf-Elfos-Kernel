@@ -66,6 +66,11 @@ o_tty:     lbr     f_tty
 o_setbd:   lbr     f_setbd
 o_initcall: lbr    f_initcall
 o_brktest: lbr     f_brktest
+o_devctrl: lbr     deverr
+
+deverr:    ldi     3                   ; error=1, device not found
+           shr                         ; Set df to indicate error
+           sep     sret                ; return to caller
 
 error:     shl                         ; move error over
            ori     1                   ; signal error condition

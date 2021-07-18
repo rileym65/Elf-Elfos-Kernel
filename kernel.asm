@@ -4274,8 +4274,12 @@ cmdlp:     ldi      high prompt          ; get address of prompt into R6
            phi      rf
            ldi      low keybuf
            plo      rf
+           ldi      07fh                 ; limit keyboard input to 127 bytes
+           plo      rc
+           ldi      0
+           phi      rc
            sep      scall
-           dw       o_input              ; function to get keyboard input
+           dw       o_inputl             ; function to get keyboard input
            ldi      high crlf            ; get address of prompt into R6
            phi      rf
            ldi      low crlf  
@@ -4479,7 +4483,7 @@ bootmsg:   db      'Starting Elf/OS ...',10,13
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0
 errnf:     db      'File not found.',10,13,0
-initprg:   db      'INIT',0
+initprg:   db      'init',0
 shellprg:  db      '/BIN/shell',0
 defdir:    db      '/BIN/',0
            ds      80

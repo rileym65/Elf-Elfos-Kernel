@@ -68,7 +68,7 @@ o_initcall: lbr    f_initcall
 o_brktest: lbr     f_brktest
 o_devctrl: lbr     deverr
 
-deverr:    ldi     3                   ; error=1, device not found
+deverr:    ldi     1                   ; error=0, device not found
            shr                         ; Set df to indicate error
            sep     sret                ; return to caller
 

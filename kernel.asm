@@ -4478,7 +4478,7 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
            lbr     rtc_cont            ; continue
 
 bootmsg:   db      'Starting Elf/OS ...',10,13
-           db      'Version 0.3.3',10,13
+           db      'Version 0.4.0',10,13
            db      'Copyright 2004-2021 by Michael H Riley',10,13,0
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0

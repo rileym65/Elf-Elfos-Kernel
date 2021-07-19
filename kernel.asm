@@ -139,8 +139,8 @@ lmpshift:  db      0
 lmpmask:   db      0
 curdrive:  db      0
 date_time: db      1,17,49,0,0,0
-secden:    dw      0
 secnum:    dw      0
+secden:    dw      0
 
 
 path2:     ds      128

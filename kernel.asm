@@ -67,6 +67,8 @@ o_setbd:   lbr     f_setbd
 o_initcall: lbr    f_initcall
 o_brktest: lbr     f_brktest
 o_devctrl: lbr     deverr
+o_alloc:   lbr     alloc
+o_dealloc: lbr     dealloc
 
 deverr:    ldi     1                   ; error=0, device not found
            shr                         ; Set df to indicate error
@@ -76,9 +78,6 @@ error:     shl                         ; move error over
            ori     1                   ; signal error condition
            shr                         ; shift over and set DF
            sep     sret                ; return to caller
-
-           org     3ceh
-biosvec:   dw      0
 
            org     3d0h                ; reserve some space for users
 user:      db      0
@@ -130,8 +129,10 @@ himem:     dw      0
 d_idereset: lbr    f_idereset          ; jump to bios ide reset
 d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
-           db      0,0,0,0,0,0,0,0,0,0,0,0,0
-           db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+d_reapheap: lbr    reapheap            ; passthrough to heapreaper
+           db      0,0,0,0,0,0,0,0,0,0
+           db      0,0,0,0,0,0,0,0,0,0,0,0,0,0
+heap:      dw      0
 d_incofs:  lbr     incofs1             ; internal vector, not a published call
 d_append:  lbr     append              ; internal vector, not a published call
 clockfrq:  dw      4000
@@ -147,12 +148,14 @@ path2:     ds      128
 
            org     0500h
 
-; ***************************************
-; *** Get offset from file descriptor ***
-; *** RD - file descriptor            ***
-; *** Returns: R8:R7 - current offset ***
-; ***************************************
-getfdofs:  lda     rd                  ; retrieve offset
+getfddwrd: str     r2
+           glo     rd
+           add
+           plo     rd
+           ghi     rd
+           adci    0
+           phi     rd
+           lda     rd
            phi     r8
            lda     rd
            plo     r8
@@ -160,28 +163,82 @@ getfdofs:  lda     rd                  ; retrieve offset
            phi     r7
            ldn     rd
            plo     r7
-fdminus3:  dec     rd                  ; restore pointer
+           glo     rd
+           sm
+           plo     rd
+           ghi     rd
+           smbi    0
+           phi     rd
            dec     rd
            dec     rd
-return:    sep     sret                ; return to caller
+           dec     rd
+return:    sep     sret
+
+
+setfddwrd: str     r2
+           glo     rd
+           add
+           plo     rd
+           ghi     rd
+           adci    0
+           phi     rd
+           inc     rd
+           inc     rd
+           inc     rd
+           sex     rd
+           glo     r7
+           stxd
+           ghi     r7
+           stxd
+           glo     r8
+           stxd
+           ghi     r8
+           str     rd
+           sex     r2
+           glo     rd
+           sm
+           plo     rd
+           ghi     rd
+           smbi    0
+           phi     rd
+           sep     sret
+
+
+; ***************************************
+; *** Get offset from file descriptor ***
+; *** RD - file descriptor            ***
+; *** Returns: R8:R7 - current offset ***
+; ***************************************
+; getfdofs:  lda     rd                  ; retrieve offset
+;            phi     r8
+;            lda     rd
+;            plo     r8
+;            lda     rd
+;            phi     r7
+;            ldn     rd
+;            plo     r7
+; fdminus3:  dec     rd                  ; restore pointer
+;            dec     rd
+;            dec     rd
+; return:    sep     sret                ; return to caller
 
 ; ***************************************
 ; *** Set offset from file descriptor ***
 ; *** RD - file descriptor            ***
 ; *** R8:R7 - current offset          ***
 ; ***************************************
-setfdofs:  ghi     r8                  ; save offset into descriptor
-           str     rd
-           inc     rd
-           glo     r8
-           str     rd
-           inc     rd
-           ghi     r7
-           str     rd
-           inc     rd
-           glo     r7
-           str     rd
-           br      fdminus3
+;setfdofs:  ghi     r8                  ; save offset into descriptor
+;           str     rd
+;           inc     rd
+;           glo     r8
+;           str     rd
+;           inc     rd
+;           ghi     r7
+;           str     rd
+;           inc     rd
+;           glo     r7
+;           str     rd
+;           br      fdminus3
 
 ; ************************************
 ; *** Get dta from file descriptor ***
@@ -303,51 +360,51 @@ setfdflgs: plo     re                  ; save D
 ; *** RD - file descriptor                ***
 ; *** Returns: R8:R7 - dir sector         ***
 ; *******************************************
-getfddrsc: glo     rd                  ; move descriptor to flags
-           adi     9
-           plo     rd
-           ghi     rd
-           adci    0
-           phi     rd
-           lda     rd                  ; get dir sector
-           phi     r8
-           lda     rd
-           plo     r8
-           lda     rd
-           phi     r7
-           ldn     rd
-           plo     r7
-fdminus12: glo     rd                  ; move pointer back to beginning
-           smi     12
-           plo     rd
-           ghi     rd
-           smbi    0
-           phi     rd
-           sep     sret                ; and return to caller
+;getfddrsc: glo     rd                  ; move descriptor to flags
+;           adi     9
+;           plo     rd
+;           ghi     rd
+;           adci    0
+;           phi     rd
+;           lda     rd                  ; get dir sector
+;           phi     r8
+;           lda     rd
+;           plo     r8
+;           lda     rd
+;           phi     r7
+;           ldn     rd
+;           plo     r7
+;fdminus12: glo     rd                  ; move pointer back to beginning
+;           smi     12
+;           plo     rd
+;           ghi     rd
+;           smbi    0
+;           phi     rd
+;           sep     sret                ; and return to caller
 
 ; *******************************************
 ; *** Set dir sector in file descriptor   ***
 ; *** RD - file descriptor                ***
 ; *** R8:R7 - dir sector                  ***
 ; *******************************************
-setfddrsc: glo     rd                  ; move descriptor to flags
-           adi     9
-           plo     rd
-           ghi     rd
-           adci    0
-           phi     rd
-           ghi     r8                  ; store dir sector
-           str     rd
-           inc     rd
-           glo     r8
-           str     rd
-           inc     rd
-           ghi     r7
-           str     rd
-           inc     rd
-           glo     r7
-           str     rd
-           br      fdminus12           ; and return
+;setfddrsc: glo     rd                  ; move descriptor to flags
+;           adi     9
+;           plo     rd
+;           ghi     rd
+;           adci    0
+;           phi     rd
+;           ghi     r8                  ; store dir sector
+;           str     rd
+;           inc     rd
+;           glo     r8
+;           str     rd
+;           inc     rd
+;           ghi     r7
+;           str     rd
+;           inc     rd
+;           glo     r7
+;           str     rd
+;           br      fdminus12           ; and return
 
 ; *******************************************
 ; *** Get dir offset from file descriptor ***
@@ -395,51 +452,51 @@ setfddrof: glo     rd                  ; move descriptor to flags
 ; *** RD - file descriptor                ***
 ; *** Returns: R8:R7 - cur sector         ***
 ; *******************************************
-getfdsec:  glo     rd                  ; move descriptor to flags
-           adi     15
-           plo     rd
-           ghi     rd
-           adci    0
-           phi     rd
-           lda     rd                  ; get current sector
-           phi     r8
-           lda     rd
-           plo     r8
-           lda     rd
-           phi     r7
-           ldn     rd
-           plo     r7
-fdminus18: glo     rd                  ; move pointer back to beginning
-           smi     18
-           plo     rd
-           ghi     rd
-           smbi    0
-           phi     rd
-           sep     sret                ; and return to caller
+;getfdsec:  glo     rd                  ; move descriptor to flags
+;           adi     15
+;           plo     rd
+;           ghi     rd
+;           adci    0
+;           phi     rd
+;           lda     rd                  ; get current sector
+;           phi     r8
+;           lda     rd
+;           plo     r8
+;           lda     rd
+;           phi     r7
+;           ldn     rd
+;           plo     r7
+;fdminus18: glo     rd                  ; move pointer back to beginning
+;           smi     18
+;           plo     rd
+;           ghi     rd
+;           smbi    0
+;           phi     rd
+;           sep     sret                ; and return to caller
 
 ; *******************************************
 ; *** Set cur sector in file descriptor   ***
 ; *** RD - file descriptor                ***
 ; *** R8:R7 - cur sector                  ***
 ; *******************************************
-setfdsec:  glo     rd                  ; move descriptor to flags
-           adi     15
-           plo     rd
-           ghi     rd
-           adci    0
-           phi     rd
-           ghi     r8                  ; store current sector
-           str     rd
-           inc     rd
-           glo     r8
-           str     rd
-           inc     rd
-           ghi     r7
-           str     rd
-           inc     rd
-           glo     r7
-           str     rd
-           br      fdminus18           ; and return
+;setfdsec:  glo     rd                  ; move descriptor to flags
+;           adi     15
+;           plo     rd
+;           ghi     rd
+;           adci    0
+;           phi     rd
+;           ghi     r8                  ; store current sector
+;           str     rd
+;           inc     rd
+;           glo     r8
+;           str     rd
+;           inc     rd
+;           ghi     r7
+;           str     rd
+;           inc     rd
+;           glo     r7
+;           str     rd
+;           br      fdminus18           ; and return
 
 ; ******************************
 ; *** Convert sector to lump ***
@@ -1279,8 +1336,11 @@ cklstlmp:  glo     r7                  ; save lump value
            stxd                        ; then store for later
            glo     rf
            stxd
-           sep     scall               ; get file offset
-           dw      getfdofs
+           ldi     0
+           sep     scall
+           dw      getfddwrd
+;           sep     scall               ; get file offset
+;           dw      getfdofs
            glo     r7                  ; subtract eof from offset
            irx                         ; move to eof on stack
            sm                          ; perform subtract
@@ -1529,8 +1589,11 @@ seekendlp: glo     ra                  ; see if have last lump
            ghi     r8
            adci    0
            phi     r8
-           sep     scall               ; write offset to descriptor
-           dw      setfdofs
+           ldi     0
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; write offset to descriptor
+;           dw      setfdofs
            irx                         ; recover consumed registers
            ldxa
            phi     rf
@@ -2851,8 +2914,11 @@ findsepno: ldi     1                   ; signal no separator
 ; ***    R9 - dir offset           ***
 ; ***    RF - pointer to dir entry ***
 ; ************************************
-setupfd:   sep     scall               ; set dir sector
-           dw      setfddrsc
+setupfd:   ldi     9
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; set dir sector
+;           dw      setfddrsc
            sep     scall               ; set dir offset
            dw      setfddrof
            ldi     0                   ; zero current offset
@@ -2860,15 +2926,21 @@ setupfd:   sep     scall               ; set dir sector
            plo     r8
            phi     r7
            plo     r7
+           ldi     0
            sep     scall
-           dw      setfdofs            ; set offset
+           dw      setfddwrd
+;           sep     scall
+;           dw      setfdofs            ; set offset
            ldi     0ffh                ; need -1
            phi     r8
            plo     r8
            phi     r7
            plo     r7
-           sep     scall               ; set current sector
-           dw      setfdsec
+           ldi     15
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; set current sector
+;           dw      setfdsec
            ldi     high scratch        ; setup scrath area
            phi     rf
            ldi     low scratch
@@ -3169,8 +3241,11 @@ create2:   lda     rf                  ; get character from filename
            phi     rd
            ldx
            plo     rd
-           sep     scall               ; write dir sector
-           dw      setfddrsc
+           ldi     9
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; write dir sector
+;           dw      setfddrsc
            sep     scall               ; write dir offset
            dw      setfddrof
            ldi     0                   ; need to set current offset to 0
@@ -3178,15 +3253,21 @@ create2:   lda     rf                  ; get character from filename
            plo     r8
            phi     r7
            plo     r7
-           sep     scall               ; write current offset
-           dw      setfdofs
+           ldi     0
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; write current offset
+;           dw      setfdofs
            ldi     0ffh                ; need to set current sector to -1
            phi     r8
            plo     r8
            phi     r7
            plo     r7
-           sep     scall               ; write current offset
-           dw      setfdsec
+           ldi     15
+           sep     scall
+           dw      setfddwrd
+;           sep     scall               ; write current offset
+;           dw      setfdsec
            ldi     0ch                 ; set flags
            sep     scall
            dw      setfdflgs
@@ -4170,8 +4251,11 @@ rmdirlp:   ldi     0                   ; need to read 32 bytes
            lbr     rmdirlp             ; read rest of dir
 rmdirno:   ldi     errdirnotempty      ; indicate not empty error
            lbr     rmdirerr            ; and error out
-rmdireof:  sep     scall               ; get direcotry info from descriptor
-           dw      getfddrsc
+rmdireof:  ldi     9
+           sep     scall
+           dw      getfddwrd
+;           sep     scall               ; get direcotry info from descriptor
+;           dw      getfddrsc
            sep     scall               ; get direcotry info from descriptor
            dw      getfddrof
            sep     scall
@@ -4227,7 +4311,17 @@ start:     sep     scall               ; execute init procedures
 ; ********************************
            sep     scall               ; get free memory
            dw      f_freemem
-           mov     r7,himem            ; point to hi memory pointer
+           ldi     0                   ; put end of heap marker
+           str     rf
+           mov     r7,heap             ; point to hi memory pointer
+           ghi     rf                  ; store highest memory address
+           str     r7                  ; and store it
+           inc     r7
+           glo     rf
+           str     r7
+           dec     rf                  ; himem is heap-1
+           ldi     himem.0
+           plo     r7
            ghi     rf                  ; store highest memory address
            str     r7                  ; and store it
            inc     r7
@@ -4257,6 +4351,8 @@ warmboot:  ldi     high stack          ; reset the stack
            ldi     low stack
            plo     r2
            sex     r2                  ; be sure x pointes to stack
+           sep     scall               ; cull the heap
+           dw      d_reapheap
 
            ldi     high shellprg       ; point to command shell name
            phi     rf
@@ -4300,7 +4396,10 @@ cmdlp:     ldi      high prompt          ; get address of prompt into R6
            sep      scall                ; call exec function
            dw       exec
            lbdf     curerr               ; jump on error
+           sep      scall                ; cull the heap
+           dw       d_reapheap
            lbr      cmdlp                ; loop back for next command
+ 
 
 curerr:    ldi      high keybuf          ; place address of keybuffer in R6
            phi      rf
@@ -4310,6 +4409,8 @@ curerr:    ldi      high keybuf          ; place address of keybuffer in R6
            sep      scall                ; call exec function
            dw       execbin
            lbdf     loaderr              ; jump on error
+           sep      scall                ; cull the heap
+           dw       d_reapheap
            lbr      cmdlp                ; loop back for next command
 loaderr:   ldi      high errnf           ; point to not found message
            phi      rf
@@ -4482,6 +4583,373 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
            plo     rf
            lbr     rtc_cont            ; continue
 
+
+; *******************************************
+; ***** Allocate memory                 *****
+; ***** RC - requested size             *****
+; ***** R7 - Flags                      *****
+; *****      2 - Permanent block        *****
+; ***** Returns: RF - Address of memory *****
+; *****          RC - Size of block     *****
+; *******************************************
+alloc:      ldi     heap.0              ; get heap address
+            plo     r9
+            ldi     heap.1 
+            phi     r9
+            lda     r9
+            phi     rd
+            ldn     r9
+            plo     rd
+            dec     r9                  ; leave pointer at heap address
+alloc_1:    lda     rd                  ; get flags byte
+            lbz     alloc_new           ; need new if end of table
+            plo     re                  ; save flags
+            lda     rd                  ; get block size
+            phi     rf
+            lda     rd
+            plo     rf
+            glo     re                  ; is block allocated?
+            ani     2
+            lbnz    alloc_nxt           ; jump if so
+            glo     rc                  ; subtract size from block size
+            str     r2
+            glo     rf
+            sm
+            plo     rf
+            ghi     rc
+            str     r2
+            ghi     rf
+            smb
+            phi     rf                  ; RF now has difference
+            lbnf    alloc_nxt           ; jumpt if block is too small
+            ghi     rf                  ; see if need to split block
+            lbnz    alloc_sp            ; jump if so
+            glo     rf                  ; get low byte of difference
+            ani     0f8h                ; want to see if at least 8 extra bytes
+            lbnz    alloc_sp            ; jump if so
+alloc_2:    glo     rd                  ; set address for return
+            plo     rf
+            ghi     rd
+            phi     rf
+            dec     rd                  ; move back to flags byte
+            dec     rd
+            dec     rd
+            glo     r7                  ; get passed flags
+            ori     2                   ; mark block as used
+            str     rd
+            inc     rd                  ; get allocated block size
+            lda     rd
+            phi     rc
+            lda     rd
+            plo     rd
+            sep     sret                ; and return to caller
+alloc_sp:   ghi     rd                  ; save this address
+            stxd
+            glo     rd
+            stxd
+            dec     rd                  ; move to lsb of block size
+            glo     rc                  ; write requested size
+            str     rd
+            dec     rd
+            ghi     rc                  ; write msb of size
+            str     rd
+            inc     rd                  ; move back to data
+            inc     rd
+            glo     rc                  ; now add size
+            str     r2
+            glo     rd
+            add
+            plo     rd
+            ghi     rd
+            str     r2
+            ghi     rc
+            adc
+            phi     rd                  ; rd now points to new block
+            ldi     1                   ; mark as a free block
+            str     rd
+            inc     rd
+            dec     rf                  ; remove 3 bytes from block size
+            dec     rf
+            dec     rf
+            ghi     rf                  ; and write into block header
+            str     rd
+            inc     rd
+            glo     rf
+            str     rd
+            irx                         ; recover address
+            ldxa
+            plo     rd
+            ldx
+            phi     rd
+            lbr     alloc_2             ; finish allocating
+alloc_nxt:  glo     rf                  ; add block size to address
+            str     r2
+            glo     rd
+            add
+            plo     rd
+            ghi     rf
+            str     r2
+            ghi     rd
+            adc
+            phi     rd
+            lbr     alloc_1             ; check next cell
+alloc_new:  lda     r9                  ; retrieve start of heap
+            phi     rd
+            ldn     r9
+            plo     rd
+            glo     rc                  ; subtract req. size from pointer
+            str     r2
+            glo     rd
+            sm
+            plo     rd
+            ghi     rc
+            str     r2
+            ghi     rd
+            smb
+            phi     rd
+            dec     rd                  ; point to lsb of block size
+            glo     rc                  ; write size
+            str     rd
+            dec     rd
+            ghi     rc
+            str     rd
+            dec     rd
+            glo     r7                  ; get passed flags
+            ori     2                   ; mark as allocated block
+            str     rd
+            glo     rd                  ; set address
+            plo     rf
+            ghi     rd
+            phi     rf
+            inc     rf                  ; point to actual data space
+            inc     rf
+            inc     rf
+            glo     rd                  ; write new heap address
+            str     r9
+            dec     r9
+            ghi     rd
+            str     r9
+            sep     scall               ; check for out of memory
+            dw      checkeom
+            lbr     sethimem
+            sep     sret                ; return to caller
+; **************************************
+; ***** Deallocate memory          *****
+; ***** RF - address to deallocate *****
+; **************************************
+dealloc:    dec     rf                  ; move to flags byte
+            dec     rf
+            dec     rf
+            ldi     1                   ; mark block as free
+            str     rf
+heapgc:     ghi     rc                  ; save consumed registers
+            stxd
+            glo     rc
+            stxd
+            ghi     rd
+            stxd
+            glo     rd
+            stxd
+            ldi     heap.0              ; need start of heap
+            plo     r9
+            ldi     heap.1     
+            phi     r9
+            lda     r9                  ; retrieve heap start address
+            phi     rd
+            ldn     r9
+            plo     rd
+heapgc_s:   dec     r9
+            ldn     rd                  ; see if first block was freed
+            lbz     heapgc_dn           ; jump if end of heap encountered
+            smi     1
+            lbnz    heapgc_1            ; jump on first allocated block
+            inc     rd                  ; retrieve block size
+            lda     rd
+            plo     re
+            lda     rd
+            str     r2                  ; and add to block
+            glo     rd
+            add
+            plo     rd
+            glo     re
+            str     r2
+            ghi     rd
+            adc
+            phi     rd
+            str     r9                  ; write new heap start
+            inc     r9
+            glo     rd
+            str     r9
+            lbr     heapgc_s            ; loop back to check for more leading empty blocks
+heapgc_1:   lda     rd                  ; retrieve flags byte
+            lbz     heapgc_dn           ; return if end of heap found
+            plo     re                  ; save copy of flags
+            lda     rd                  ; retrieve block size
+            phi     rc
+            lda     rd
+            plo     rc
+            glo     rd                  ; RF=RD+RC, point to next block
+            str     r2
+            glo     rc
+            add
+            plo     rf
+            ghi     rd
+            str     r2
+            ghi     rc
+            adc
+            phi     rf
+            lda     rf                  ; retrieve flags for next block
+            lbz     heapgc_dn           ; return if on last block
+            ani     2                   ; is block allocated?
+            lbnz    heapgc_a            ; jump if so
+            glo     re                  ; check flags of current block
+            ani     2                   ; is it allocated
+            lbnz    heapgc_a            ; jump if so
+            lda     rf                  ; retrieve next block size into RF
+            plo     re
+            lda     rf
+            plo     rf
+            glo     re
+            phi     rf
+            inc     rf                  ; add 3 bytes for header
+            inc     rf
+            inc     rf
+            glo     rf                  ; RC += RF, combine sizes
+            str     r2
+            glo     rc
+            add
+            plo     rc
+            ghi     rf
+            str     r2
+            ghi     rc
+            adc
+            phi     rc
+            dec     rd                  ; write size of combined blocks
+            glo     rc
+            str     rd
+            dec     rd
+            ghi     rc
+            str     rd
+            dec     rd                  ; move back to flags byte
+            lbr     heapgc_1            ; keep checking for merges
+heapgc_a:   glo     rf                  ; move pointer to next block
+            plo     rd
+            ghi     rf
+            phi     rd
+            dec     rd                  ; move back to flags byte
+            lbr     heapgc_1            ; and check next block
+heapgc_dn:  irx                         ; recover consumed registers
+            ldxa
+            plo     rd
+            ldxa
+            phi     rd
+            ldxa
+            plo     rc
+            ldx
+            phi     rc
+            lbr     sethimem
+
+sethimem:   push    rf
+            push    rd
+            mov     rf,heap+1
+            mov     rd,himem+1
+            ldn     rf
+            smi     1
+            str     rd
+            dec     rf
+            dec     rd
+            ldn     rf
+            smbi    0
+            str     rd
+            pop     rd
+            pop     rf
+            sep     sret                ; return to caller
+
+; ****************************************************
+; ***** Deallocate any non-permanent heap blocks *****
+; ****************************************************
+reapheap:   ldi     heap.0              ; need start of heap
+            plo     rd
+            ldi     heap.1    
+            phi     rd
+            lda     rd                  ; retrieve heap start address
+            phi     rf
+            ldn     rd
+            plo     rf
+hpcull_lp:  ldn     rf                  ; get flags byte
+            lbz     heapgc              ; If end, garbage collect the heap
+            ani     6                   ; check for allocated permanent block
+            smi     6
+            lbnz    hpcull_nx           ; jump if allocated and permanent
+            ldi     1                   ; mark block as free
+            str     rf
+hpcull_nx:  inc     rf                  ; get block size
+            lda     rf
+            plo     re
+            lda     rf
+            str     r2                  ; and add to pointer
+            glo     rf
+            add
+            plo     rf
+            glo     re
+            str     r2
+            ghi     rf
+            adc
+            phi     rf
+            lbr     hpcull_lp           ; loop until end of heap
+
+
+
+; ***********************************
+; ***** Check for out of memory *****
+; ***********************************
+checkeom:   ghi     rc                  ; save consumed register
+            stxd
+            glo     rc
+            stxd
+            ldi     000h                ; get end of variable table
+            plo     r9
+            ldi     020h
+            phi     r9
+            lda     r9                  ; retrieve variable table end
+            phi     rc
+            lda     r9
+            plo     rc
+            ldi     heap.0              ; point to heap start
+            plo     r9
+            ldi     heap.1     
+            phi     r9
+            inc     r9                  ; point to lsb
+            ldn     r9                  ; get heap
+            str     r2
+            glo     rc                  ; subtract from variable table end
+            sm
+            dec     r9                  ; point to msb
+            ldn     r9                  ; retrieve it
+            str     r2
+            ghi     rc                  ; subtract from variable table end
+            smb
+            lbdf    oom                 ; jump of out of memory
+            irx                         ; recover consumed register
+            ldxa
+            plo     rc
+            ldx
+            phi     rc
+            sep     sret                ; and return to caller
+oom:        sep     scall               ; display out of memory error
+            dw      f_inmsg
+            db      'Out of memory: ',0
+            lbr     $                   ; show line of error and exit
+
+
+
+
+
+
+
+
+
+
 bootmsg:   db      'Starting Elf/OS ...',10,13
            db      'Version 0.4.0',10,13
            db      'Copyright 2004-2021 by Michael H Riley',10,13,0
@@ -4496,7 +4964,7 @@ defdir:    db      '/bin/',0
 path:      ds      128
 intdta:    ds      512
 mddta:     ds      512
-           ds      128
+           ds      64
 stack:     db      0
 
 

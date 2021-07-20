@@ -34,6 +34,9 @@ O_SETBD:   equ     0360h               ; passthrough to f_setbd
 O_INITCALL: equ    0363h               ; passthrough to f_initcall
 O_BRKTEST: equ     0366h               ; passthrough to f_brktest
 O_DEVCTRL: equ     0369h               ; passthrough to deverr
+O_ALLOC:   equ     036ch               ; passthrough to alloc
+O_DEALLOC: equ     036fh               ; passthrough to dealloc
+I_SERVE:   equ     03f6h               ; address of interrupt chain head
 V_IVEC:    equ     03fdh               ; interrupt head
 V_DVEC:    equ     036ah               ; device head
 K_VER:     equ     0400h               ; kernel version number
@@ -42,6 +45,7 @@ K_BMONTH:  equ     0405h               ; kernel build month
 K_BDAY:    equ     0406h               ; kernel build day
 K_BYEAR:   equ     0407h               ; kernel build month
 K_HIMEM:   equ     0442h               ; high memory pointer
+K_HEAP:    equ     044dh               ; heap pointer
 K_CLKFREQ: equ     0470h               ; system clock frequency
 K_MONTH:   equ     0475h               ; date/time
 K_DAY:     equ     0476h
@@ -49,7 +53,7 @@ K_YEAR:    equ     0477h
 K_HOUR:    equ     0478h
 K_MINUTE:  equ     0479h
 K_SECOND:  equ     047ah
-K_SECNUM:  equ     047bh
-K_SECDEN:  equ     047dh
+K_SECDEN:  equ     047bh
+K_SECNUM:  equ     047dh
 
 

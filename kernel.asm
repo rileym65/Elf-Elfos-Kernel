@@ -69,6 +69,7 @@ o_brktest: lbr     f_brktest
 o_devctrl: lbr     deverr
 o_alloc:   lbr     alloc
 o_dealloc: lbr     dealloc
+o_termctl: lbr     noopen
 
 deverr:    ldi     1                   ; error=0, device not found
            shr                         ; Set df to indicate error

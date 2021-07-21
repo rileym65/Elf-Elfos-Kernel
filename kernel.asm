@@ -47,7 +47,7 @@ o_chdir:   lbr     chdir
 o_rmdir:   lbr     rmdir
 o_rdlump:  lbr     readlump
 o_wrtlump: lbr     writelump
-o_type:    lbr     f_type
+o_type:    lbr     f_tty
 o_msg:     lbr     f_msg
 o_readkey: lbr     f_read
 o_input:   lbr     f_input
@@ -144,11 +144,14 @@ secnum:    dw      0
 secden:    dw      0
 
 
-path2:     ds      128
+path:      ds      128
 
            org     0500h
 
-getfddwrd: str     r2
+getfddwrd: plo     re
+           push    rd
+           glo     re
+           str     r2
            glo     rd
            add
            plo     rd
@@ -163,19 +166,14 @@ getfddwrd: str     r2
            phi     r7
            ldn     rd
            plo     r7
-           glo     rd
-           sm
-           plo     rd
-           ghi     rd
-           smbi    0
-           phi     rd
-           dec     rd
-           dec     rd
-           dec     rd
+           pop     rd
 return:    sep     sret
 
 
-setfddwrd: str     r2
+setfddwrd: plo     re
+           push    rd
+           glo     re
+           str     r2
            glo     rd
            add
            plo     rd
@@ -195,12 +193,7 @@ setfddwrd: str     r2
            ghi     r8
            str     rd
            sex     r2
-           glo     rd
-           sm
-           plo     rd
-           ghi     rd
-           smbi    0
-           phi     rd
+           pop     rd
            sep     sret
 
 
@@ -209,18 +202,18 @@ setfddwrd: str     r2
 ; *** RD - file descriptor            ***
 ; *** Returns: R8:R7 - current offset ***
 ; ***************************************
-; getfdofs:  lda     rd                  ; retrieve offset
-;            phi     r8
-;            lda     rd
-;            plo     r8
-;            lda     rd
-;            phi     r7
-;            ldn     rd
-;            plo     r7
-; fdminus3:  dec     rd                  ; restore pointer
-;            dec     rd
-;            dec     rd
-; return:    sep     sret                ; return to caller
+;getfdofs:  lda     rd                  ; retrieve offset
+;           phi     r8
+;           lda     rd
+;           plo     r8
+;           lda     rd
+;           phi     r7
+;           ldn     rd
+;           plo     r7
+;fdminus3:  dec     rd                  ; restore pointer
+;           dec     rd
+;           dec     rd
+;return:    sep     sret                ; return to caller
 
 ; ***************************************
 ; *** Set offset from file descriptor ***
@@ -2917,7 +2910,7 @@ findsepno: ldi     1                   ; signal no separator
 setupfd:   ldi     9
            sep     scall
            dw      setfddwrd
-;           sep     scall               ; set dir sector
+;setupfd:   sep     scall               ; set dir sector
 ;           dw      setfddrsc
            sep     scall               ; set dir offset
            dw      setfddrof
@@ -4254,7 +4247,7 @@ rmdirno:   ldi     errdirnotempty      ; indicate not empty error
 rmdireof:  ldi     9
            sep     scall
            dw      getfddwrd
-;           sep     scall               ; get direcotry info from descriptor
+;rmdireof:  sep     scall               ; get direcotry info from descriptor
 ;           dw      getfddrsc
            sep     scall               ; get direcotry info from descriptor
            dw      getfddrof
@@ -4587,8 +4580,19 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
 ; *******************************************
 ; ***** Allocate memory                 *****
 ; ***** RC - requested size             *****
-; ***** R7 - Flags                      *****
-; *****      2 - Permanent block        *****
+; ***** R7.0 - Flags                    *****
+; *****      0 - Non-permanent block    *****
+; *****      4 - Permanent block        *****
+; ***** R7.1 - Alignment                *****
+; *****      0 - no alignment           *****
+; *****      1 - Even address           *****
+; *****      3 - 4-byte boundary        *****
+; *****      7 - 8-byte boundary        *****
+; *****     15 - 16-byte boundary       *****
+; *****     31 - 32-byte boundary       *****
+; *****     63 - 64-byte boundary       *****
+; *****    127 - 128-byte boundary      *****
+; *****    255 - Page boundary          *****
 ; ***** Returns: RF - Address of memory *****
 ; *****          RC - Size of block     *****
 ; *******************************************
@@ -4601,6 +4605,8 @@ alloc:      ldi     heap.0              ; get heap address
             ldn     r9
             plo     rd
             dec     r9                  ; leave pointer at heap address
+            ghi     r7
+            lbnz    alloc_aln           ; jump if aligned block requested
 alloc_1:    lda     rd                  ; get flags byte
             lbz     alloc_new           ; need new if end of table
             plo     re                  ; save flags
@@ -4733,6 +4739,53 @@ alloc_new:  lda     r9                  ; retrieve start of heap
             dw      checkeom
             lbr     sethimem
             sep     sret                ; return to caller
+alloc_aln:  glo     rd                  ; keep copy of heap head in RF
+            plo     rf
+            ghi     rd
+            phi     rf
+            glo     rc                  ; subtract size from heap head
+            str     r2
+            glo     rd
+            sm
+            plo     rd
+            ghi     rc
+            str     r2
+            ghi     rd
+            smb
+            phi     rd                  ; rd now pointing at head-size
+            ghi     r7                  ; get alignement type
+            xri     0ffh                ; invert the bits
+            str     r2                  ; need to AND with address
+            glo     rd
+            and
+            plo     rd                  ; RD now has aligned address
+            str     r2                  ; now subtract new address from original to get block size
+            glo     rf
+            sm
+            plo     rf
+            ghi     rd
+            str     r2
+            ghi     rf
+            smb
+            phi     rf                  ; RF now holds new block size
+            dec     rd                  ; lsb of size
+            glo     rf                  ; store block size in header
+            str     rd
+            dec     rd
+            ghi     rf
+            str     rd
+            dec     rd                  ; rd now pointing to flags byte
+            ldi     1                   ; mark as unallocated
+            str     rd
+            ghi     rd                  ; write new start of heap address
+            str     r9
+            inc     r9
+            glo     rd
+            str     r9
+            dec     r9
+            lbr     alloc_1             ; now allocate the block
+
+
 ; **************************************
 ; ***** Deallocate memory          *****
 ; ***** RF - address to deallocate *****
@@ -4960,10 +5013,9 @@ shellprg:  db      '/bin/shell',0
 defdir:    db      '/bin/',0
            ds      80
 
-path:      ds      128
 intdta:    ds      512
 mddta:     ds      512
-           ds      64
+           ds      128
 stack:     db      0
 
 

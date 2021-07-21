@@ -45,7 +45,7 @@ K_BMONTH:  equ     0405h               ; kernel build month
 K_BDAY:    equ     0406h               ; kernel build day
 K_BYEAR:   equ     0407h               ; kernel build month
 K_HIMEM:   equ     0442h               ; high memory pointer
-K_HEAP:    equ     044dh               ; heap pointer
+K_HEAP:    equ     0468h               ; heap pointer
 K_CLKFREQ: equ     0470h               ; system clock frequency
 K_MONTH:   equ     0475h               ; date/time
 K_DAY:     equ     0476h

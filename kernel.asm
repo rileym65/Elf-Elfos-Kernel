@@ -4878,8 +4878,7 @@ reapheap:   ldi     heap.0              ; need start of heap
             plo     rf
 hpcull_lp:  ldn     rf                  ; get flags byte
             lbz     heapgc              ; If end, garbage collect the heap
-            ani     6                   ; check for allocated permanent block
-            smi     6
+            ani     4                   ; check for permanent block
             lbnz    hpcull_nx           ; jump if allocated and permanent
             ldi     1                   ; mark block as free
             str     rf

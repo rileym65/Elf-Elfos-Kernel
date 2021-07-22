@@ -132,7 +132,9 @@ d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
            db      0,0,0,0,0,0,0,0,0,0
-           db      0,0,0,0,0,0,0,0,0,0,0,0,0,0
+           db      0,0,0,0,0,0,0,0,0,0,0
+lowmem:    dw      0
+retval:    db      0
 heap:      dw      0
 d_incofs:  lbr     incofs1             ; internal vector, not a published call
 d_append:  lbr     append              ; internal vector, not a published call
@@ -3912,7 +3914,11 @@ opened:    mov      rf,intflags          ; need to get flags
            plo      rf
            sep      scall                ; call loaded program
 progaddr:  dw       0
-           ldi      0                    ; signal no error
+           plo     re                  ; save return value
+           mov     r7,retval           ; point to retval
+           glo     re                  ; write return value
+           str     r7
+           ldi     0                    ; signal no error
            shr
            sep      sret                 ; return to caller
 notexec:   ldi      errnotexec           ; signal non-executable file
@@ -4340,7 +4346,11 @@ welcome:   ldi     high bootmsg
            sep     scall
            dw      o_msg
      
-warmboot:  ldi     high stack          ; reset the stack
+warmboot:  plo     re                  ; save return value
+           mov     rf,retval           ; point to retval
+           glo     re                  ; write return value
+           str     rf
+           ldi     high stack          ; reset the stack
            phi     r2
            ldi     low stack
            plo     r2

@@ -29,7 +29,6 @@ O_GETTOD:  equ     0351h               ; passthrough to f_gettod
 O_SETTOD:  equ     0354h               ; passthrough to f_settod
 O_INPUTL:  equ     0357h               ; passthrough to f_inputl
 O_BOOT:    equ     035ah               ; passthrough to f_boot
-O_TTY:     equ     035dh               ; passthrough to f_tty
 O_SETBD:   equ     0360h               ; passthrough to f_setbd
 O_INITCALL: equ    0363h               ; passthrough to f_initcall
 O_BRKTEST: equ     0366h               ; passthrough to f_brktest
@@ -45,6 +44,8 @@ K_BMONTH:  equ     0405h               ; kernel build month
 K_BDAY:    equ     0406h               ; kernel build day
 K_BYEAR:   equ     0407h               ; kernel build month
 K_HIMEM:   equ     0442h               ; high memory pointer
+K_LOWMEM:  equ     0465h               ; lowest memory heap can use
+K_RETVAL:  equ     0467h               ; D on program exit
 K_HEAP:    equ     0468h               ; heap pointer
 K_CLKFREQ: equ     0470h               ; system clock frequency
 K_MONTH:   equ     0475h               ; date/time

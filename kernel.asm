@@ -133,7 +133,7 @@ d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
            db      0,0,0,0,0,0,0,0,0,0
            db      0,0,0,0,0,0,0,0,0,0,0
-lowmem:    dw      0
+lowmem:    dw      04000h
 retval:    db      0
 heap:      dw      0
 d_incofs:  lbr     incofs1             ; internal vector, not a published call
@@ -3896,6 +3896,15 @@ opened:    mov      rf,intflags          ; need to get flags
            phi      rc
            lda      r7
            plo      rc
+           push     rf
+           mov      rf,lowmem
+           ghi      rc
+           adi      020h
+           str      rf
+           inc      rf
+           glo      rc
+           str      rf
+           pop      rf
            sep      scall                ; read program block
            dw       o_read
 ;           dw       read
@@ -4659,6 +4668,7 @@ alloc_2:    glo     rd                  ; set address for return
             phi     rc
             lda     rd
             plo     rd
+            adi     0                   ; clear df
             sep     sret                ; and return to caller
 alloc_sp:   ghi     rd                  ; save this address
             stxd
@@ -4724,7 +4734,14 @@ alloc_new:  lda     r9                  ; retrieve start of heap
             ghi     rd
             smb
             phi     rd
-            dec     rd                  ; point to lsb of block size
+            dec     rd
+            dec     rd
+            dec     rd
+            sep     scall               ; check for out of memory
+            dw      checkeom
+            lbdf    return              ; return to caller on error
+            inc     rd                  ; point to lsb of block size
+            inc     rd
             glo     rc                  ; write size
             str     rd
             dec     rd
@@ -4746,8 +4763,6 @@ alloc_new:  lda     r9                  ; retrieve start of heap
             dec     r9
             ghi     rd
             str     r9
-            sep     scall               ; check for out of memory
-            dw      checkeom
             lbr     sethimem
             sep     sret                ; return to caller
 alloc_aln:  glo     rd                  ; keep copy of heap head in RF
@@ -4779,7 +4794,14 @@ alloc_aln:  glo     rd                  ; keep copy of heap head in RF
             ghi     rf
             smb
             phi     rf                  ; RF now holds new block size
-            dec     rd                  ; lsb of size
+            dec     rd
+            dec     rd
+            dec     rd
+            sep     scall               ; check for out of memory
+            dw      checkeom
+            lbdf    return              ; return to caller on error
+            inc     rd                  ; point to lsb of block size
+            inc     rd
             glo     rf                  ; store block size in header
             str     rd
             dec     rd
@@ -4927,6 +4949,7 @@ sethimem:   push    rf
             str     rd
             pop     rd
             pop     rf
+            adi     0                   ; signal no error
             sep     sret                ; return to caller
 
 ; ****************************************************
@@ -4963,16 +4986,15 @@ hpcull_nx:  inc     rf                  ; get block size
 
 
 
-; ***********************************
-; ***** Check for out of memory *****
-; ***********************************
-checkeom:   ghi     rc                  ; save consumed register
-            stxd
-            glo     rc
-            stxd
-            ldi     000h                ; get end of variable table
+; ****************************************
+; ***** Check for out of memory      *****
+; ***** DF=1 if allocation too large *****
+; ****************************************
+checkeom:   push    rc
+            push    r9
+            ldi     lowmem.0            ; get lowmem
             plo     r9
-            ldi     020h
+            ldi     lowmem.1
             phi     r9
             lda     r9                  ; retrieve variable table end
             phi     rc
@@ -4993,16 +5015,12 @@ checkeom:   ghi     rc                  ; save consumed register
             ghi     rc                  ; subtract from variable table end
             smb
             lbdf    oom                 ; jump of out of memory
-            irx                         ; recover consumed register
-            ldxa
-            plo     rc
-            ldx
-            phi     rc
+            adi     0                   ; clear df
+oomret:     pop     r9
+            pop     rc
             sep     sret                ; and return to caller
-oom:        sep     scall               ; display out of memory error
-            dw      f_inmsg
-            db      'Out of memory: ',0
-            lbr     $                   ; show line of error and exit
+oom:        smi     0                   ; set df 
+            lbr     oomret
 
 
 

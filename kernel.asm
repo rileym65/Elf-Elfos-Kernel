@@ -132,7 +132,8 @@ d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
            db      0,0,0,0,0,0,0,0,0,0
-           db      0,0,0,0,0,0,0,0,0,0,0
+           db      0,0,0,0,0,0,0,0,0
+stackaddr: dw      0
 lowmem:    dw      04000h
 retval:    db      0
 heap:      dw      0
@@ -4284,7 +4285,7 @@ coldboot:  ldi     high start          ; get return address for setcall
            phi     r6
            ldi     low start
            plo     r6
-           ldi     0                   ; setup temporary stack
+           ldi     020h                ; setup temporary stack
            phi     r2
            ldi     255
            plo     r2
@@ -4303,22 +4304,42 @@ kinit:     sep     scall               ; get free memory
            inc     rf
            ldi     0
            str     rf
-           ldi     high stack          ; reset the stack
+
+           mov     rc,252              ; want to allocate 252 bytes on the heap
+           mov     r7,00004            ; allocate as a permanent block
+           sep     scall               ; allocate the memory
+           dw      o_alloc
+           mov     r7,stackaddr+1      ; point to allocation pointer
+           ldi     1                   ; mark interrupts enabled
+           lsie                        ; skip if interrupts are enabled
+           ldi     0                   ; mark interrupts disabled
+           plo     re                  ; save IE flag
+           ldi     023h                ; setup for DIS
+           str     r2
+           dis                         ; disable interrupts
+           dec     r2
+           glo     rf                  ; SP needs to be end of heap block
+           adi     251
+           str     r7                  ; write to pointer
+           dec     r7
+           plo     r2                  ; and into R2
+           ghi     rf                  ; process high byte
+           adci    0
+           str     r7
            phi     r2
-           ldi     low stack
-           plo     r2
-           sex     r2                  ; be sure x pointes to stack
+           glo     re                  ; recover IE flag
+           lbz     kinit2              ; jump if interrupts disabled
+           ldi     023h                ; setup for RET
+           str     r2
+           ret                         ; re-enable interrupts
+           dec     r2
+kinit2:    dec     r2                  ; need 2 less
+           dec     r2
            sep     scall               ; get shift count for lump size
            dw      lmpsize
            sep     sret                ; return to caller
 
-start:     sep     scall               ; execute init procedures
-           dw      kinit
-
-; ********************************
-; *** Attempt to execute /INIT ***
-; ********************************
-           sep     scall               ; get free memory
+start:     sep     scall               ; get free memory
            dw      f_freemem
            ldi     0                   ; put end of heap marker
            str     rf
@@ -4336,6 +4357,8 @@ start:     sep     scall               ; execute init procedures
            inc     r7
            glo     rf
            str     r7
+           sep     scall               ; call rest of kernel setup
+           dw      kinit
 
            ldi     high initprg        ; point to init program command line
            phi     rf
@@ -4359,12 +4382,32 @@ warmboot:  plo     re                  ; save return value
            mov     rf,retval           ; point to retval
            glo     re                  ; write return value
            str     rf
-           ldi     high stack          ; reset the stack
+           sex     r2                  ; be sure r2 points to stack
+           ldi     1                   ; signal interrupts enabled
+           lsie                        ; skip if interrupts are enabled
+           ldi     0                   ; signal interupts are not enab led
+           plo     re                  ; save interrupts flag
+           ldi     023h                ; setup for DIS
+           str     r2
+           dis                         ; disable interrupts during change of R2
+           dec     r2
+           mov     rc,stackaddr        ; point to system stack address
+           lda     rc                  ; and reset R2
            phi     r2
-           ldi     low stack
+           lda     rc
            plo     r2
-           sex     r2                  ; be sure x pointes to stack
-           sep     scall               ; cull the heap
+           glo     re                  ; recover interrupts flag
+           lbz     warm2               ; jump if interrupts are not enabled
+           ldi     023h                ; setup for RET
+           str     r2
+           ret                         ; re-enable interrupts
+           dec     r2
+           
+;           ldi     high stack          ; reset the stack
+;           phi     r2
+;           ldi     low stack
+;           plo     r2
+warm2:     sep     scall               ; cull the heap
            dw      d_reapheap
 
            ldi     high shellprg       ; point to command shell name
@@ -5044,7 +5087,7 @@ defdir:    db      '/bin/',0
 
 intdta:    ds      512
 mddta:     ds      512
-           ds      128
-stack:     db      0
+;           ds      128
+;stack:     db      0
 
 

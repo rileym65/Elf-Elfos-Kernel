@@ -32,9 +32,11 @@ O_BOOT:    equ     035ah               ; passthrough to f_boot
 O_SETBD:   equ     0360h               ; passthrough to f_setbd
 O_INITCALL: equ    0363h               ; passthrough to f_initcall
 O_BRKTEST: equ     0366h               ; passthrough to f_brktest
-O_DEVCTRL: equ     0369h               ; passthrough to deverr
+O_DEVCTRL: equ     0369h               ; Hook for device control drivers
 O_ALLOC:   equ     036ch               ; passthrough to alloc
 O_DEALLOC: equ     036fh               ; passthrough to dealloc
+O_TERMCTRL: equ    0372h               ; Hook for terminal control drivers
+O_MEMCTRL: equ     0375h               ; Hook for memory control drivers
 I_SERVE:   equ     03f6h               ; address of interrupt chain head
 V_IVEC:    equ     03fdh               ; interrupt head
 V_DVEC:    equ     036ah               ; device head

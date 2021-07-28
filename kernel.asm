@@ -131,6 +131,7 @@ d_idereset: lbr    f_idereset          ; jump to bios ide reset
 d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
+d_progend:  lbr    warm3
            db      0,0,0,0,0,0,0,0,0,0
            db      0,0,0,0,0,0,0,0,0
 stackaddr: dw      0
@@ -4409,8 +4410,8 @@ warmboot:  plo     re                  ; save return value
 ;           plo     r2
 warm2:     sep     scall               ; cull the heap
            dw      d_reapheap
-
-           ldi     high shellprg       ; point to command shell name
+           lbr     d_progend
+warm3:     ldi     high shellprg       ; point to command shell name
            phi     rf
            ldi     low shellprg
            plo     rf

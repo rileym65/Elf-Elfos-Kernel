@@ -132,7 +132,7 @@ d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
 d_progend:  lbr    warm3
-           db      0,0,0,0,0,0,0,0,0,0
+           db      0,0,0,0,0,0,0
            db      0,0,0,0,0,0,0,0,0
 stackaddr: dw      0
 lowmem:    dw      04000h
@@ -3866,7 +3866,7 @@ execgo1:
            sep      scall                ; attempt to open the file
            dw       open
            lbnf     opened               ; jump if it was opened
-err:       ldi      1                    ; signal an error
+err:       ldi      9                    ; signal file not found error
            shr
            sep      sret
 opened:    mov      rf,intflags          ; need to get flags
@@ -3888,7 +3888,40 @@ opened:    mov      rf,intflags          ; need to get flags
            phi      r7
            ldi      low scratch
            plo      r7
-           lda      r7                   ; get load address
+
+           inc      r7                   ; lsb of load size
+           inc      r7
+           inc      r7
+           ldn      r7                   ; retrieve it
+           str      r2                   ; store for add
+           dec      r7                   ; lsb of load addres
+           dec      r7
+           lda      r7                   ; retrieve it
+           add                           ; add in size lsb
+           plo      rf                   ; result in rf
+           ldn      r7                   ; get msb of size
+           str      r2                   ; store for add
+           dec      r7                   ; point to msb of load address
+           dec      r7
+           ldn      r7                   ; retrieve it
+           adc                           ; add in msb of size
+           phi      rf                   ; rf now has highest address
+           mov      rb,heap+1            ; now subtract heap address
+           glo      rf                   ; lsb of high address
+           str      r2                   ; store for subtract
+           ldn      rb                   ; get lsb of heap address
+           sm                            ; and subtract
+           ghi      rf                   ; msb of high address
+           str      r2                   ; store for subtract
+           dec      rb                   ; msb of heap
+           ldn      rb                   ; get heap address
+           smb                           ; and subtract
+           lbdf     opengood             ; jump if enough memory
+           ldi      0bh                  ; signal memory low error
+           shr
+           sep      sret                 ; and return to caller
+
+opengood:  lda      r7                   ; get load address
            phi      rf
            phi      rb                   ; and make a copy
            lda      r7

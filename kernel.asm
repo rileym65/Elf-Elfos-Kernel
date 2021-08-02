@@ -1649,38 +1649,65 @@ seekendg1: ghi     r7                  ; add bytes per lump to offset
 ; ***    RC - Whence 0-start, 1-current, 2-eof ***
 ; *** Returns: R8:R7 - original position       ***
 ; ************************************************
-seek:      inc     rd                  ; point to low byte
+seek:      sep     scall               ; check for valid FILDES
+           dw      chkvld
+           lbnf    seekgo              ; jump if FILDES is good
+           ldi     2                   ; signal invalid FILDES
+           sep     sret                ; and return
+seekgo:    inc     rd                  ; point to low byte
            inc     rd
            inc     rd
            glo     rc                  ; get whence
            lbnz    seeknot0            ; jump if not 0
-           glo     r7                  ; transfer new offset
-           plo     re
-           ldn     rd
-           plo     r7
-           glo     re
+seekcont2: ghi     r8                  ; check for negative offset
+           shl
+           lbnf    seekgo2             ; jump if offset is positive
+           ldi     00dh                ; signal error
+           shr
+           dec     rd                  ; restore rd
+           dec     rd
+           dec     rd
+           sep     sret                ; and return
+seekgo2:   glo     r7                  ; transfer new offset
+
            str     rd
            dec     rd
-           ghi     r7                  ; transfer new offset
-           plo     re
-           ldn     rd
-           phi     r7
-           glo     re
+           ghi     r7
            str     rd
            dec     rd
-           glo     r8                  ; transfer new offset
-           plo     re
-           ldn     rd
-           plo     r8
-           glo     re
+           glo     r8
            str     rd
            dec     rd
-           ghi     r8                  ; transfer new offset
-           plo     re
-           ldn     rd
-           phi     r8
-           glo     re
+           ghi     r8
            str     rd
+
+;           plo     re
+;           ldn     rd
+;           plo     r7
+;           glo     re
+;           str     rd
+;           dec     rd
+;           ghi     r7                  ; transfer new offset
+;           plo     re
+;           ldn     rd
+;           phi     r7
+;           glo     re
+;           str     rd
+;           dec     rd
+;           glo     r8                  ; transfer new offset
+;           plo     re
+;           ldn     rd
+;           plo     r8
+;           glo     re
+;           str     rd
+;           dec     rd
+;           ghi     r8                  ; transfer new offset
+;           plo     re
+;           ldn     rd
+;           phi     r8
+;           glo     re
+;           str     rd
+
 seekcont:  sep     scall               ; read the corresponding sector
            dw      loadsec
 ; *****************************************************
@@ -1727,37 +1754,78 @@ seekcont:  sep     scall               ; read the corresponding sector
            ldx
            plo     rd
 ; *****************************************************
-seekret:   sep     sret                ; and return to caller
+seekret:   lda     rd                  ; retrieve file pointer into R8:R7
+           phi     r8
+           lda     rd
+           plo     r8
+           lda     rd
+           phi     r7
+           ldn     rd
+           plo     r7
+           dec     rd                  ; restore RD
+           dec     rd
+           dec     rd
+           adi     0                   ; clear DF
+           sep     sret                ; and return to caller
 seeknot0:  smi     1                   ; check for seek from current
            lbnz    seeknot1            ; jump if not
-seekct2:   glo     r7                  ; add offset to current offset
-           str     r2                  ; place into memory for add
-           ldn     rd                  ; get value from descriptor
-           plo     r7                  ; keep copy
-           add                         ; add new offset
-           str     rd                  ; store new offset
-           dec     rd                  ; point to previous byte
-           ghi     r7                  ; add offset to current offset
-           str     r2                  ; place into memory for add
-           ldn     rd                  ; get value from descriptor
-           phi     r7                  ; keep copy
-           adc                         ; add new offset
-           str     rd                  ; store new offset
-           dec     rd                  ; point to previous byte
-           glo     r8                  ; add offset to current offset
-           str     r2                  ; place into memory for add
-           ldn     rd                  ; get value from descriptor
-           plo     r8                  ; keep copy
-           adc                         ; add new offset
-           str     rd                  ; store new offset
-           dec     rd                  ; point to previous byte
-           ghi     r8                  ; add offset to current offset
-           str     r2                  ; place into memory for add
-           ldn     rd                  ; get value from descriptor
-           phi     r8                  ; keep copy
-           adc                         ; add new offset
-           str     rd                  ; store new offset
-           lbr     seekcont            ; load new sector
+
+seekct2:   glo     r7                  ; add file position to offset
+           str     r2
+           ldn     rd
+           add
+           plo     r7
+           dec     rd
+           ghi     r7
+           str     r2
+           ldn     rd
+           adc
+           phi     r7
+           dec     rd
+           glo     r8
+           str     r2
+           ldn     rd
+           adc
+           plo     r8
+           dec     rd
+           ghi     r8
+           str     r2
+           lda     rd
+           adc
+           phi     r8
+           inc     rd                  ; put rd back at lsb
+           inc     rd
+           lbr     seekcont2           ; and then perform seek
+
+
+;seekct2:   glo     r7                  ; add offset to current offset
+;           str     r2                  ; place into memory for add
+;           ldn     rd                  ; get value from descriptor
+;           plo     r7                  ; keep copy
+;           add                         ; add new offset
+;           str     rd                  ; store new offset
+;           dec     rd                  ; point to previous byte
+;           ghi     r7                  ; add offset to current offset
+;           str     r2                  ; place into memory for add
+;           ldn     rd                  ; get value from descriptor
+;           phi     r7                  ; keep copy
+;           adc                         ; add new offset
+;           str     rd                  ; store new offset
+;           dec     rd                  ; point to previous byte
+;           glo     r8                  ; add offset to current offset
+;           str     r2                  ; place into memory for add
+;           ldn     rd                  ; get value from descriptor
+;           plo     r8                  ; keep copy
+;           adc                         ; add new offset
+;           str     rd                  ; store new offset
+;           dec     rd                  ; point to previous byte
+;           ghi     r8                  ; add offset to current offset
+;           str     r2                  ; place into memory for add
+;           ldn     rd                  ; get value from descriptor
+;           phi     r8                  ; keep copy
+;           adc                         ; add new offset
+;           str     rd                  ; store new offset
+;           lbr     seekcont            ; load new sector
 seeknot1:  smi     1                   ; check for seek from end
            lbnz    seeknot2
            dec     rd                  ; move to beginning of descriptor
@@ -1772,7 +1840,9 @@ seeknot1:  smi     1                   ; check for seek from end
 seeknot2:  dec     rd                  ; restore descriptor
            dec     rd
            dec     rd
-           sep     sret
+           ldi     0fh                 ; signal error
+           shr
+           sep     sret                ; and return to caller
 
 ; *************************************
 ; *** Open master directory         ***
@@ -4693,7 +4763,10 @@ no_rtc:    ldi     high date_time      ; point to stored date/time
 ; ***** Returns: RF - Address of memory *****
 ; *****          RC - Size of block     *****
 ; *******************************************
-alloc:      ldi     heap.0              ; get heap address
+alloc:
+            push    r9                  ; save consumed registers
+            push    rd
+            ldi     heap.0              ; get heap address
             plo     r9
             ldi     heap.1 
             phi     r9
@@ -4746,6 +4819,9 @@ alloc_2:    glo     rd                  ; set address for return
             lda     rd
             plo     rd
             adi     0                   ; clear df
+alloc_ext:
+            pop     rd                  ; recover consumed registers
+            pop     r9
             sep     sret                ; and return to caller
 alloc_sp:   ghi     rd                  ; save this address
             stxd
@@ -4816,7 +4892,7 @@ alloc_new:  lda     r9                  ; retrieve start of heap
             dec     rd
             sep     scall               ; check for out of memory
             dw      checkeom
-            lbdf    return              ; return to caller on error
+            lbdf    alloc_ext           ; return to caller on error
             inc     rd                  ; point to lsb of block size
             inc     rd
             glo     rc                  ; write size
@@ -4900,7 +4976,9 @@ alloc_aln:  glo     rd                  ; keep copy of heap head in RF
 ; ***** Deallocate memory          *****
 ; ***** RF - address to deallocate *****
 ; **************************************
-dealloc:    dec     rf                  ; move to flags byte
+dealloc:    push    r9                  ; save consumed registers
+            push    rd
+            dec     rf                  ; move to flags byte
             dec     rf
             dec     rf
             ldi     1                   ; mark block as free
@@ -5027,12 +5105,14 @@ sethimem:   push    rf
             pop     rd
             pop     rf
             adi     0                   ; signal no error
-            sep     sret                ; return to caller
+            lbr     alloc_ext           ; return to caller
 
 ; ****************************************************
 ; ***** Deallocate any non-permanent heap blocks *****
 ; ****************************************************
-reapheap:   ldi     heap.0              ; need start of heap
+reapheap:   push    r9                  ; save consumed registers
+            push    rd
+            ldi     heap.0              ; need start of heap
             plo     rd
             ldi     heap.1    
             phi     rd
@@ -5114,7 +5194,7 @@ bootmsg:   db      'Starting Elf/OS ...',10,13
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0
 errnf:     db      'File not found.',10,13,0
-initprg:   db      'init',0
+initprg:   db      '/bin/init',0
 shellprg:  db      '/bin/shell',0
 defdir:    db      '/bin/',0
            ds      80

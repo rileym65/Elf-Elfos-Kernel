@@ -9,7 +9,7 @@
 ; #define  ELF2K
 
          org     300h
-         include  bios.inc
+         include  ../bios.inc
 scratch: equ     010h
 keybuf:  equ     080h
 dta:     equ     100h
@@ -70,6 +70,8 @@ o_devctrl: lbr     deverr
 o_alloc:   lbr     alloc
 o_dealloc: lbr     dealloc
 o_termctl: lbr     noopen
+o_nbread:  lbr     f_nbread
+o_memctrl: lbr     deverr
 
 deverr:    ldi     1                   ; error=0, device not found
            shr                         ; Set df to indicate error
@@ -100,7 +102,7 @@ iserve:    dec     r2
 ivec:      dw      intret
 
            org     400h
-version:   db      0,4,0
+version:   db      4,1,0
 
 include    build.inc
 include    date.inc
@@ -132,8 +134,10 @@ d_ideread: lbr     f_ideread           ; jump to bios ide read
 d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
 d_progend:  lbr    warm3
+d_lmpsize: lbr     lmpsize
+           db      0,0,0,0
            db      0,0,0,0,0,0,0
-           db      0,0,0,0,0,0,0,0,0
+shelladdr: dw      0
 stackaddr: dw      0
 lowmem:    dw      04000h
 retval:    db      0
@@ -4028,10 +4032,12 @@ opengood:  lda      r7                   ; get load address
            plo      rf
            sep      scall                ; call loaded program
 progaddr:  dw       0
-           plo     re                  ; save return value
-           mov     r7,retval           ; point to retval
-           glo     re                  ; write return value
+           plo     re                   ; save return value
+           mov     r7,retval            ; point to retval
+           glo     re                   ; write return value
            str     r7
+           sep     scall                ; cull the heap
+           dw      d_reapheap
            ldi     0                    ; signal no error
            shr
            sep      sret                 ; return to caller
@@ -4556,8 +4562,6 @@ cmdlp:     ldi      high prompt          ; get address of prompt into R6
            sep      scall                ; call exec function
            dw       exec
            lbdf     curerr               ; jump on error
-           sep      scall                ; cull the heap
-           dw       d_reapheap
            lbr      cmdlp                ; loop back for next command
  
 
@@ -4569,8 +4573,6 @@ curerr:    ldi      high keybuf          ; place address of keybuffer in R6
            sep      scall                ; call exec function
            dw       execbin
            lbdf     loaderr              ; jump on error
-           sep      scall                ; cull the heap
-           dw       d_reapheap
            lbr      cmdlp                ; loop back for next command
 loaderr:   ldi      high errnf           ; point to not found message
            phi      rf
@@ -4797,7 +4799,7 @@ alloc_1:    lda     rd                  ; get flags byte
             ghi     rf
             smb
             phi     rf                  ; RF now has difference
-            lbnf    alloc_nxt           ; jumpt if block is too small
+            lbnf    alloc_nxt2          ; jumpt if block is too small
             ghi     rf                  ; see if need to split block
             lbnz    alloc_sp            ; jump if so
             glo     rf                  ; get low byte of difference
@@ -4862,6 +4864,16 @@ alloc_sp:   ghi     rd                  ; save this address
             ldx
             phi     rd
             lbr     alloc_2             ; finish allocating
+alloc_nxt2: glo     rc                  ; put rf back 
+            str     r2
+            glo     rf
+            add
+            plo     rf
+            ghi     rc
+            str     r2
+            ghi     rf
+            adc
+            phi     rf
 alloc_nxt:  glo     rf                  ; add block size to address
             str     r2
             glo     rd
@@ -4978,6 +4990,7 @@ alloc_aln:  glo     rd                  ; keep copy of heap head in RF
 ; **************************************
 dealloc:    push    r9                  ; save consumed registers
             push    rd
+            push    rf
             dec     rf                  ; move to flags byte
             dec     rf
             dec     rf
@@ -5079,7 +5092,8 @@ heapgc_a:   glo     rf                  ; move pointer to next block
             phi     rd
             dec     rd                  ; move back to flags byte
             lbr     heapgc_1            ; and check next block
-heapgc_dn:  irx                         ; recover consumed registers
+heapgc_dn:  pop     rf
+            irx                         ; recover consumed registers
             ldxa
             plo     rd
             ldxa
@@ -5112,6 +5126,7 @@ sethimem:   push    rf
 ; ****************************************************
 reapheap:   push    r9                  ; save consumed registers
             push    rd
+            push    rf
             ldi     heap.0              ; need start of heap
             plo     rd
             ldi     heap.1    
@@ -5189,7 +5204,7 @@ oom:        smi     0                   ; set df
 
 
 bootmsg:   db      'Starting Elf/OS ...',10,13
-           db      'Version 0.4.0',10,13
+           db      'Version 4.1.0',10,13
            db      'Copyright 2004-2021 by Michael H Riley',10,13,0
 prompt:    db      10,13,'Ready',10,13,': ',0
 crlf:      db      10,13,0

@@ -4819,7 +4819,7 @@ alloc_2:    glo     rd                  ; set address for return
             lda     rd
             phi     rc
             lda     rd
-            plo     rd
+            plo     rc
             adi     0                   ; clear df
 alloc_ext:
             pop     rd                  ; recover consumed registers
@@ -4996,14 +4996,8 @@ dealloc:    push    r9                  ; save consumed registers
             dec     rf
             ldi     1                   ; mark block as free
             str     rf
-heapgc:     ghi     rc                  ; save consumed registers
-            stxd
-            glo     rc
-            stxd
-            ghi     rd
-            stxd
-            glo     rd
-            stxd
+heapgc:     push    rc
+            push    rd
             ldi     heap.0              ; need start of heap
             plo     r9
             ldi     heap.1     
@@ -5092,16 +5086,9 @@ heapgc_a:   glo     rf                  ; move pointer to next block
             phi     rd
             dec     rd                  ; move back to flags byte
             lbr     heapgc_1            ; and check next block
-heapgc_dn:  pop     rf
-            irx                         ; recover consumed registers
-            ldxa
-            plo     rd
-            ldxa
-            phi     rd
-            ldxa
-            plo     rc
-            ldx
-            phi     rc
+heapgc_dn:  pop     rd
+            pop     rc
+            pop     rf
             lbr     sethimem
 
 sethimem:   push    rf

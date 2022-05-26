@@ -12,3 +12,8 @@ x.x
 *.prg
 *.hex
 *.lst
+*.build
+*.back
+*.bak
+*.test
+*.bin

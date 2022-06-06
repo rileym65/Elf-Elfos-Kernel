@@ -29,6 +29,7 @@ O_GETTOD:  equ     0351h               ; passthrough to f_gettod
 O_SETTOD:  equ     0354h               ; passthrough to f_settod
 O_INPUTL:  equ     0357h               ; passthrough to f_inputl
 O_BOOT:    equ     035ah               ; passthrough to f_boot
+O_TTY:     equ     035dh               ; passthrough to f_tty
 O_SETBD:   equ     0360h               ; passthrough to f_setbd
 O_INITCALL: equ    0363h               ; passthrough to f_initcall
 O_BRKTEST: equ     0366h               ; passthrough to f_brktest
@@ -58,5 +59,3 @@ K_MINUTE:  equ     0479h
 K_SECOND:  equ     047ah
 K_SECDEN:  equ     047bh
 K_SECNUM:  equ     047dh
-
-

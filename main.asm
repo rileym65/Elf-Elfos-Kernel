@@ -171,7 +171,8 @@ d_idewrite: lbr    f_idewrite          ; jump to bios ide write
 d_reapheap: lbr    reapheap            ; passthrough to heapreaper
 d_progend:  lbr    warm3
 d_lmpsize: lbr     lmpsize
-           db      0,0,0,0
+o_video:   lbr     deverr              ; video driver
+           db      0
            db      0,0,0,0,0,0,0
 shelladdr: dw      0
 stackaddr: dw      0
